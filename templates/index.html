@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>VoidSync</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="icon" type="image/png" href="/static/img/cogskull.png">
+
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&display=swap" rel="stylesheet">
+
+    <style>
+    body {
+      font-family: 'Orbitron', sans-serif;
+      letter-spacing: 0.05em;
+      background: url("/static/img/cogskull.png") no-repeat center center fixed;
+      background-size: 70vmin auto; /* scales based on viewport */
+      background-color: black;      /* fallback */
+      color: #e5e7eb;
+    }
+
+    /* Glow on hover */
+    .hover-glow:hover {
+      text-shadow: 0 0 6px #f87171, 0 0 12px #dc2626;
+    }
+
+    /* Scrollbar theme */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-thumb { background: #7f1d1d; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #dc2626; }
+    ::-webkit-scrollbar-track { background: #111; }
+  </style>
+</head>
+<body class="h-screen flex flex-col">
+
+  <!-- Dark veil over spinning cog -->
+  <div class="veil"></div>
+
+  <!-- App content -->
+  <div class="relative z-10 flex flex-col h-full">
+
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-red-900 to-black border-b border-red-800 px-4 py-3 flex justify-between items-center">
+      <div class="flex items-center space-x-3">
+        <img src="/static/img/cogskull.png" class="h-7 w-7 animate-pulse" alt="VoidSync logo">
+        <h1 class="text-2xl font-extrabold text-red-500 tracking-[0.25em]">VOIDSYNC</h1>
+      </div>
+      <span class="text-xs text-red-500 tracking-widest">
+        [ LINKED: <span class="text-emerald-400">{{ user }}</span>@{{ host }} ]
+      </span>
+    </header>
+
+    <!-- Progress -->
+    <div id="progressContainer" class="w-full h-1 bg-red-950">
+      <div id="progressBar" class="h-1 bg-red-600 transition-all duration-200" style="width: 0%;"></div>
+    </div>
+
+    <!-- Action Bar -->
+    <div class="bg-gradient-to-r from-red-950 to-black border-b border-red-800 px-4 py-2 flex space-x-3 text-sm">
+      <button id="btnDelete" class="bg-red-700 hover:bg-red-600 px-3 py-1 rounded disabled:opacity-40 hover-glow">☠ PURGE</button>
+    </div>
+
+    <!-- Main -->
+    <main class="flex flex-1 overflow-hidden p-2 space-x-2">
+
+      <!-- Local Pane -->
+      <div id="localPane" class="flex-1 flex flex-col bg-black/90 border border-red-800 rounded min-w-0 shadow-lg shadow-red-900/40">
+        <div class="px-3 py-2 border-b border-red-800 flex justify-between items-center bg-black/60">
+          <h2 class="text-sm font-bold text-red-500 uppercase tracking-widest">Local Cogitator</h2>
+          <nav class="text-xs text-gray-500 truncate">
+            {% if local_path != "C:/" %}
+              <a href="/?local_path={{ local_path }}/.." class="hover:text-red-400 hover-glow">☠ Back</a> /
+            {% endif %}
+            {{ local_path }}
+          </nav>
+        </div>
+        <ul class="flex-1 overflow-y-auto text-sm divide-y divide-red-900">
+          {% for f in local_files %}
+          <li
+            class="px-3 py-1.5 hover:bg-red-900/40 transition flex justify-between items-center cursor-pointer {{ 'text-emerald-400' if f.is_dir else 'text-gray-300' }}"
+            draggable="{{ 'true' if not f.is_dir else 'false' }}"
+            data-path="{{ local_path }}/{{ f.name }}"
+            data-side="local"
+            data-name="{{ f.name }}"
+            data-isdir="{{ 'true' if f.is_dir else 'false' }}"
+          >
+            <div class="flex items-center space-x-2 truncate w-full">
+              <input type="checkbox" class="file-select accent-red-600" data-path="{{ local_path }}/{{ f.name }}" data-side="local">
+              <div class="truncate flex-1">
+                {% if f.is_dir %}
+                  ⚙ <a href="/?local_path={{ local_path }}/{{ f.name }}&remote_path={{ remote_path }}" class="hover-glow">{{ f.name }}</a>
+                {% else %}
+                  ✶ {{ f.name }}
+                {% endif %}
+              </div>
+            </div>
+            {% if not f.is_dir %}
+              <span class="text-xs text-gray-500 whitespace-nowrap ml-2">{{ f.size }} B</span>
+            {% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+
+      <!-- Remote Pane -->
+      <div id="remotePane" class="flex-1 flex flex-col bg-black/90 border border-red-800 rounded min-w-0 shadow-lg shadow-red-900/40">
+        <div class="px-3 py-2 border-b border-red-800 flex justify-between items-center bg-black/60">
+          <h2 class="text-sm font-bold text-red-500 uppercase tracking-widest">Remote Cogitator</h2>
+          <nav class="text-xs text-gray-500 truncate">
+            {% if remote_path != "." %}
+              <a href="/?local_path={{ local_path }}&remote_path={{ remote_path }}/.." class="hover:text-red-400 hover-glow">☠ Back</a> /
+            {% endif %}
+            {{ remote_path }}
+          </nav>
+        </div>
+        <ul class="flex-1 overflow-y-auto text-sm divide-y divide-red-900">
+          {% for f in remote_files %}
+          <li
+            class="px-3 py-1.5 hover:bg-red-900/40 transition flex justify-between items-center cursor-pointer {{ 'text-emerald-400' if f.is_dir else 'text-gray-300' }}"
+            draggable="{{ 'true' if not f.is_dir else 'false' }}"
+            data-path="{{ remote_path }}/{{ f.name }}"
+            data-side="remote"
+            data-name="{{ f.name }}"
+            data-isdir="{{ 'true' if f.is_dir else 'false' }}"
+          >
+            <div class="flex items-center space-x-2 truncate w-full">
+              <input type="checkbox" class="file-select accent-red-600" data-path="{{ remote_path }}/{{ f.name }}" data-side="remote">
+              <div class="truncate flex-1">
+                {% if f.is_dir %}
+                  ⚙ <a href="/?local_path={{ local_path }}&remote_path={{ remote_path }}/{{ f.name }}" class="hover-glow">{{ f.name }}</a>
+                {% else %}
+                  ✶ {{ f.name }}
+                {% endif %}
+              </div>
+            </div>
+            {% if not f.is_dir %}
+              <span class="text-xs text-gray-500 whitespace-nowrap ml-2">{{ f.size }} B</span>
+            {% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </main>
+  </div>
+
+  <!-- Purge Modal -->
+  <div id="deleteModal" class="hidden fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50">
+    <div class="bg-black border border-red-800 rounded shadow-2xl p-6 w-96">
+      <h3 class="text-lg font-bold text-red-500 mb-4 tracking-widest">☠ Confirm Purge</h3>
+      <p id="deleteSummary" class="text-sm text-gray-300 mb-6"></p>
+      <div class="flex justify-end space-x-3">
+        <button id="cancelDelete" class="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600">Cancel</button>
+        <button id="confirmDelete" class="px-3 py-1 rounded bg-red-700 hover:bg-red-600 hover-glow">PURGE</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    const progressBar = document.getElementById("progressBar");
+    const btnDelete = document.getElementById("btnDelete");
+    const deleteModal = document.getElementById("deleteModal");
+    const cancelDelete = document.getElementById("cancelDelete");
+    const confirmDelete = document.getElementById("confirmDelete");
+    const deleteSummary = document.getElementById("deleteSummary");
+
+    function updateProgress(percent) {
+      progressBar.style.width = percent + "%";
+    }
+
+    function getSelectedFiles() {
+      return Array.from(document.querySelectorAll(".file-select")).filter(cb => cb.checked);
+    }
+
+    document.querySelectorAll(".file-select").forEach(cb => {
+      cb.addEventListener("change", () => {
+        btnDelete.disabled = getSelectedFiles().length === 0;
+      });
+    });
+
+    function openDeleteModal() {
+      const selected = getSelectedFiles();
+      if (selected.length > 0) {
+        const names = selected.map(cb => cb.dataset.path).join("<br>");
+        deleteSummary.innerHTML = `You are about to <span class="text-red-400">PURGE</span>:<br><span class="text-emerald-400">${names}</span><br><br>This cannot be undone.`;
+        deleteModal.classList.remove("hidden");
+      }
+    }
+
+    btnDelete.addEventListener("click", openDeleteModal);
+    cancelDelete.addEventListener("click", () => {
+      deleteModal.classList.add("hidden");
+    });
+
+    confirmDelete.addEventListener("click", () => {
+      const selected = getSelectedFiles();
+      deleteModal.classList.add("hidden");
+      selected.forEach(cb => {
+        let form = new FormData();
+        form.append("path", cb.dataset.path);
+        form.append("side", cb.dataset.side);
+        fetch("/delete", { method: "POST", body: form }).then(() => window.location.reload());
+      });
+    });
+
+    document.addEventListener("keydown", e => {
+      if (e.key === "Delete" || e.key === "Backspace") {
+        openDeleteModal();
+      }
+    });
+
+    // Drag & Drop
+    const panes = document.querySelectorAll("#localPane, #remotePane");
+    panes.forEach(pane => {
+      pane.addEventListener("dragover", e => {
+        e.preventDefault();
+        pane.classList.add("ring-2", "ring-red-600");
+      });
+      pane.addEventListener("dragleave", () => {
+        pane.classList.remove("ring-2", "ring-red-600");
+      });
+      pane.addEventListener("drop", async e => {
+        e.preventDefault();
+        pane.classList.remove("ring-2", "ring-red-600");
+        const dragged = JSON.parse(e.dataTransfer.getData("application/json"));
+        updateProgress(5);
+
+        let form = new FormData();
+        if (dragged.side === "local" && pane.id === "remotePane") {
+          form.append("local_path", dragged.path);
+          form.append("remote_path", "{{ remote_path }}/" + dragged.name);
+          await fetch("/upload", { method: "POST", body: form });
+        } else if (dragged.side === "remote" && pane.id === "localPane") {
+          form.append("remote_path", dragged.path);
+          form.append("local_path", "{{ local_path }}/" + dragged.name);
+          await fetch("/download", { method: "POST", body: form });
+        }
+
+        updateProgress(100);
+        setTimeout(() => updateProgress(0), 1000);
+        window.location.reload();
+      });
+    });
+
+    document.querySelectorAll("li[draggable='true']").forEach(li => {
+      li.addEventListener("dragstart", e => {
+        const payload = {
+          name: li.dataset.name,
+          path: li.dataset.path,
+          side: li.dataset.side
+        };
+        e.dataTransfer.setData("application/json", JSON.stringify(payload));
+      });
+    });
+  </script>
+</body>
+</html>
