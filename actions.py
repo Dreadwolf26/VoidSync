@@ -3,6 +3,7 @@ import os
 
 # actions.py
 import os
+import stat
 
 from paramiko import SFTPClient
 
@@ -68,31 +69,36 @@ def download_file(sftp: SFTPClient, remote_path: str, local_path: str, transfer_
 
     sftp.get(remote_path, local_path, callback=callback)
 
-def upload_dir(sftp, local_dir, remote_dir):
+def upload_dir(sftp, local_dir, remote_dir, transfer_id_prefix="up"):
     """Recursively upload a directory to remote."""
     for root, dirs, files in os.walk(local_dir):
         rel_path = os.path.relpath(root, local_dir)
-        target_dir = os.path.join(remote_dir, rel_path).replace("\\", "/")
+        target_dir = f"{remote_dir}/{rel_path}" if rel_path != "." else remote_dir
 
+        # ensure directory exists remotely
         try:
             sftp.mkdir(target_dir)
         except IOError:
-            pass  # directory may already exist
+            pass
 
         for file in files:
             local_file = os.path.join(root, file)
-            remote_file = os.path.join(target_dir, file).replace("\\", "/")
-            upload_file(sftp, local_file, remote_file)
+            remote_file = f"{target_dir}/{file}"
+            transfer_id = f"{transfer_id_prefix}:{remote_file}"
+            upload_file(sftp, local_file, remote_file, transfer_id)
 
-def download_dir(sftp, remote_dir, local_dir):
+
+def download_dir(sftp, remote_dir, local_dir, transfer_id_prefix="down"):
     """Recursively download a directory from remote."""
     os.makedirs(local_dir, exist_ok=True)
 
     for item in sftp.listdir_attr(remote_dir):
-        remote_path = os.path.join(remote_dir, item.filename).replace("\\", "/")
+        remote_path = f"{remote_dir}/{item.filename}"
         local_path = os.path.join(local_dir, item.filename)
 
-        if bool(item.st_mode & 0o40000):  # is a directory
-            download_dir(sftp, remote_path, local_path)
+        if stat.S_ISDIR(item.st_mode):
+            download_dir(sftp, remote_path, local_path, transfer_id_prefix)
         else:
-            download_file(sftp, remote_path, local_path)
+            transfer_id = f"{transfer_id_prefix}:{remote_path}"
+            download_file(sftp, remote_path, local_path, transfer_id)
+

@@ -12,7 +12,7 @@ from fastapi import BackgroundTasks, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from actions import list_local, list_remote, progress_store
+from actions import download_dir, list_local, list_remote, progress_store, upload_dir
 from helpers import recursive_rmdir
 from read_yaml import get_config_values
 from ssh_connection import create_connection
@@ -100,25 +100,28 @@ async def index(
 
 @app.post("/upload")
 async def upload_file(local_path: str = Form(...), remote_path: str = Form(...)):
-    """
-    Upload file local → remote with progress + collision handling.
-    """
     transfer_id = str(uuid.uuid4())
     progress_store[transfer_id] = {"done": 0, "total": 0, "status": "uploading"}
 
     def do_upload():
         def _task(sftp):
-            target_path = sftp_safe_filename(sftp, remote_path)
-            file_size = os.path.getsize(local_path)
-            progress_store[transfer_id]["total"] = file_size
+            if os.path.isdir(local_path):
+                # folder upload
+                upload_dir(sftp, local_path, remote_path, transfer_id_prefix=transfer_id)
+            else:
+                # single file upload
+                target_path = sftp_safe_filename(sftp, remote_path)
+                file_size = os.path.getsize(local_path)
+                progress_store[transfer_id]["total"] = file_size
 
-            def callback(transferred, total):
-                progress_store[transfer_id]["done"] = transferred
-                progress_store[transfer_id]["total"] = total
+                def callback(transferred, total):
+                    progress_store[transfer_id]["done"] = transferred
+                    progress_store[transfer_id]["total"] = total
 
-            sftp.put(local_path, target_path, callback=callback)
+                sftp.put(local_path, target_path, callback=callback)
+
             progress_store[transfer_id]["status"] = "done"
-            print(f"✅ Upload complete: {local_path} → {target_path}")
+            print(f"✅ Upload complete: {local_path} → {remote_path}")
 
         run_sftp_task(_task)
 
@@ -126,27 +129,32 @@ async def upload_file(local_path: str = Form(...), remote_path: str = Form(...))
     return {"transfer_id": transfer_id}
 
 
+
 @app.post("/download")
 async def download_file(remote_path: str = Form(...), local_path: str = Form(...)):
-    """
-    Download file remote → local with progress + collision handling.
-    """
     transfer_id = str(uuid.uuid4())
     progress_store[transfer_id] = {"done": 0, "total": 0, "status": "downloading"}
 
     def do_download():
         def _task(sftp):
-            target_path = safe_filename(local_path)
-            file_size = sftp.stat(remote_path).st_size
-            progress_store[transfer_id]["total"] = file_size
+            attr = sftp.stat(remote_path)
+            if stat.S_ISDIR(attr.st_mode):
+                # folder download
+                download_dir(sftp, remote_path, local_path, transfer_id_prefix=transfer_id)
+            else:
+                # single file download
+                target_path = safe_filename(local_path)
+                file_size = attr.st_size
+                progress_store[transfer_id]["total"] = file_size
 
-            def callback(transferred, total):
-                progress_store[transfer_id]["done"] = transferred
-                progress_store[transfer_id]["total"] = total
+                def callback(transferred, total):
+                    progress_store[transfer_id]["done"] = transferred
+                    progress_store[transfer_id]["total"] = total
 
-            sftp.get(remote_path, target_path, callback=callback)
+                sftp.get(remote_path, target_path, callback=callback)
+
             progress_store[transfer_id]["status"] = "done"
-            print(f"⬇️ Download complete: {remote_path} → {target_path}")
+            print(f"⬇️ Download complete: {remote_path} → {local_path}")
 
         run_sftp_task(_task)
 

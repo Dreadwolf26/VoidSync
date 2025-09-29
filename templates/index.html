@@ -78,7 +78,7 @@
           {% for f in local_files %}
           <li
             class="px-3 py-1.5 hover:bg-red-900/40 transition flex justify-between items-center cursor-pointer {{ 'text-emerald-400' if f.is_dir else 'text-gray-300' }}"
-            draggable="{{ 'true' if not f.is_dir else 'false' }}"
+            draggable="true"
             data-path="{{ local_path }}/{{ f.name }}"
             data-side="local"
             data-name="{{ f.name }}"
@@ -117,7 +117,7 @@
           {% for f in remote_files %}
           <li
             class="px-3 py-1.5 hover:bg-red-900/40 transition flex justify-between items-center cursor-pointer {{ 'text-emerald-400' if f.is_dir else 'text-gray-300' }}"
-            draggable="{{ 'true' if not f.is_dir else 'false' }}"
+            draggable="true"
             data-path="{{ remote_path }}/{{ f.name }}"
             data-side="remote"
             data-name="{{ f.name }}"
